@@ -1,0 +1,69 @@
+# Multimodal AI Security - Docker Compose
+# Development and Production configurations
+
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multimodal-security-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    environment:
+      - MODELS_DIR=/app/models
+      - LOG_LEVEL=INFO
+      - PASS_THRESHOLD=0.3
+      - FLAG_THRESHOLD=0.6
+      - BLOCK_THRESHOLD=0.8
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - security-net
+
+  # Streamlit Frontend
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: multimodal-security-ui
+    command: streamlit run app/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - security-net
+
+  # Redis (optional, for caching)
+  redis:
+    image: redis:7-alpine
+    container_name: multimodal-security-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - security-net
+
+networks:
+  security-net:
+    driver: bridge
+
+volumes:
+  redis-data:
